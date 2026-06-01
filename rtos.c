@@ -50,6 +50,56 @@ void os_yield(void) {
     SwitchToFiber(kernel_fiber);
 }
 
+// ----------MUTEX CODE-----------
+
+void mutex_init(Mutex* m){
+    m->is_locked = false;
+    m->owner_id = -1;
+}
+
+void mutex_acquire(Mutex *m){
+    //keep trying until lock is grabbed
+    while (m->is_locked){
+
+        // PRIORITY INHERITANCE: 
+        // If we have a higher priority than the current owner, boost the owner!
+        if (process_table[current_process].priority > process_table[m->owner_id].priority) {
+            printf("[KERNEL] Priority Inheritance! Boosting Task %d to Priority %d\n", 
+                   m->owner_id, process_table[current_process].priority);
+            process_table[m->owner_id].priority = process_table[current_process].priority;
+        }
+        
+        // Put ourselves to sleep indefinitely (-1) until the lock is released
+        process_table[current_process].state = BLOCKED;
+        process_table[current_process].sleep_ticks = -1; 
+        os_yield();
+    }
+    // We got the lock!
+    m->is_locked = true;
+    m->owner_id = current_process;
+}
+
+void mutex_release(Mutex* m) {
+    if (m->owner_id == current_process) {
+        m->is_locked = false;
+        m->owner_id = -1;
+        
+        // Restore our original priority in case we were boosted
+        process_table[current_process].priority = process_table[current_process].base_priority;
+        
+        // Wake up ANY tasks that were blocked indefinitely waiting for this mutex
+        for (int i = 0; i < process_count; i++) {
+            if (process_table[i].state == BLOCKED && process_table[i].sleep_ticks == -1) {
+                process_table[i].state = READY;
+            }
+        }
+        
+        // Yield the CPU so the highest priority awoken task can immediately grab the lock
+        os_yield(); 
+    }
+}
+
+
 void os_start(void) {
     printf("Starting Lightweight RTOS Kernel...\n");
 
@@ -95,7 +145,7 @@ void os_start(void) {
             // CONTEXT SWITCH
             SwitchToFiber(process_table[current_process].fiber);
         }
-        
+
         // If tasks are BLOCKED, we still count them as active so the OS doesn't shut down
         for (int i = 0; i < process_count; i++) {
             if (process_table[i].state == BLOCKED) {
