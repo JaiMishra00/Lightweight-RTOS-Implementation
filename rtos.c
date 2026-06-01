@@ -100,6 +100,54 @@ void mutex_release(Mutex* m) {
 }
 
 
+void mq_init(MessageQueue* q) {
+    q->head = 0;
+    q->tail = 0;
+    q->count = 0;
+    mutex_init(&q->lock);
+}
+
+void mq_send(MessageQueue* q, int data) {
+    while (1) {
+        mutex_acquire(&q->lock);
+        
+        // If there is space in the queue, add the data!
+        if (q->count < QUEUE_MAX_SIZE) {
+            q->buffer[q->tail] = data;
+            q->tail = (q->tail + 1) % QUEUE_MAX_SIZE;
+            q->count++;
+            mutex_release(&q->lock);
+            return; // Success, exit the function
+        }
+        
+        // If the queue is full, release the lock and yield the CPU 
+        // to let the Consumer run and empty out some space.
+        mutex_release(&q->lock);
+        os_yield(); 
+    }
+}
+
+int mq_receive(MessageQueue* q) {
+    int data;
+    while (1) {
+        mutex_acquire(&q->lock);
+        
+        // If there is data in the queue, grab it!
+        if (q->count > 0) {
+            data = q->buffer[q->head];
+            q->head = (q->head + 1) % QUEUE_MAX_SIZE;
+            q->count--;
+            mutex_release(&q->lock);
+            return data; // Success, return the data
+        }
+        
+        // If the queue is empty, release the lock and sleep for 1 tick.
+        // This ensures the Consumer doesn't hog the CPU while waiting for data!
+        mutex_release(&q->lock);
+        os_delay(10); 
+    }
+}
+
 void os_start(void) {
     printf("Starting Lightweight RTOS Kernel...\n");
 
