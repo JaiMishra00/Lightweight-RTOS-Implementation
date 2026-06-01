@@ -56,8 +56,7 @@ void os_start(void) {
     while (1) {
         int active_tasks = 0;
 
-        // --- NEW: THE SYSTEM TICK (Time Management) ---
-        // We simulate a 1ms hardware tick passing every time the kernel loops
+        // THE SYSTEM TICK (Time Management)
         Sleep(1); // Standard Windows sleep to slow down our simulation
         
         for (int i = 0; i < process_count; i++) {
@@ -72,20 +71,31 @@ void os_start(void) {
             }
         }
         
-        // Simple Round Robin Scheduling logic
-        current_process = (current_process + 1) % process_count;
+        // --- NEW: STRICT PRIORITY SCHEDULER ---
+        int next_process = -1;
+        int highest_priority = -1;
 
-        // Check if the process is valid to run
-        if (process_table[current_process].state == READY ||
-            process_table[current_process].state == RUNNING) {
-            
+        // Scan all processes to find the highest priority task that is ready to run
+        for (int i = 0; i < process_count; i++) {
+            if (process_table[i].state == READY || process_table[i].state == RUNNING) {
+                // If we find a process with a higher priority, select it
+                if (process_table[i].priority > highest_priority) {
+                    highest_priority = process_table[i].priority;
+                    next_process = i;
+                }
+            }
+        }
+
+        // If we found a valid task to run
+        if (next_process != -1) {
+            current_process = next_process;
             process_table[current_process].state = RUNNING;
             active_tasks++;
 
-            // CONTEXT SWITCH: Jump to the process's Fiber
+            // CONTEXT SWITCH
             SwitchToFiber(process_table[current_process].fiber);
         }
-
+        
         // If tasks are BLOCKED, we still count them as active so the OS doesn't shut down
         for (int i = 0; i < process_count; i++) {
             if (process_table[i].state == BLOCKED) {
