@@ -55,6 +55,22 @@ void os_start(void) {
 
     while (1) {
         int active_tasks = 0;
+
+        // --- NEW: THE SYSTEM TICK (Time Management) ---
+        // We simulate a 1ms hardware tick passing every time the kernel loops
+        Sleep(1); // Standard Windows sleep to slow down our simulation
+        
+        for (int i = 0; i < process_count; i++) {
+            // If a task is blocked and waiting on a timer, decrement its timer
+            if (process_table[i].state == BLOCKED && process_table[i].sleep_ticks > 0) {
+                process_table[i].sleep_ticks--;
+                
+                // If the timer hits zero, wake the task up!
+                if (process_table[i].sleep_ticks == 0) {
+                    process_table[i].state = READY;
+                }
+            }
+        }
         
         // Simple Round Robin Scheduling logic
         current_process = (current_process + 1) % process_count;
@@ -70,10 +86,26 @@ void os_start(void) {
             SwitchToFiber(process_table[current_process].fiber);
         }
 
+        // If tasks are BLOCKED, we still count them as active so the OS doesn't shut down
+        for (int i = 0; i < process_count; i++) {
+            if (process_table[i].state == BLOCKED) {
+                active_tasks++;
+            }
+        }
+
         // If no tasks are READY or RUNNING, exit the kernel loop
         if (active_tasks == 0) {
             printf("All processes terminated. Shutting down OS.\n");
             break;
         }
+    }
+}
+
+//Puts the current running task to sleep for a set number of ticks
+void os_delay(int ticks) {
+    if (current_process != -1 && ticks > 0) {
+        process_table[current_process].sleep_ticks = ticks;
+        process_table[current_process].state = BLOCKED;
+        os_yield(); // Hand control back to the OS immediately
     }
 }
