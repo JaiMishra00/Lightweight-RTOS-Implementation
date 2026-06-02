@@ -148,6 +148,46 @@ int mq_receive(MessageQueue* q) {
     }
 }
 
+// ------------NEW: SEMAPHORE FUNCTIONALITY-----------------
+
+void sem_init(Semaphore* s, int max) {
+    s->count = max;
+    s->max_count = max;
+    mutex_init(&s->lock); // Initialize the underlying mutex
+}
+
+// Equivalent to acquiring a resource
+void sem_wait(Semaphore* s) {
+    while (1) {
+        // Lock the semaphore safely to check the count
+        mutex_acquire(&s->lock);
+        
+        if (s->count > 0) {
+            // A resource is available! Take it.
+            s->count--;
+            mutex_release(&s->lock);
+            return; 
+        }
+        
+        // If the pool is empty (count == 0), unlock and go to sleep.
+        // We delay so the tasks currently holding resources can finish!
+        mutex_release(&s->lock);
+        os_delay(5); 
+    }
+}
+
+// Equivalent to releasing a resource
+void sem_post(Semaphore* s) {
+    mutex_acquire(&s->lock);
+    
+    // Only return a resource if we haven't exceeded the maximum capacity
+    if (s->count < s->max_count) {
+        s->count++;
+    }
+    
+    mutex_release(&s->lock);
+}
+
 void os_start(void) {
     printf("Starting Lightweight RTOS Kernel...\n");
 
@@ -169,7 +209,7 @@ void os_start(void) {
             }
         }
         
-        // --- NEW: STRICT PRIORITY SCHEDULER ---
+        // --- STRICT PRIORITY SCHEDULER ---
         int next_process = -1;
         int highest_priority = -1;
 

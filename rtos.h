@@ -34,7 +34,7 @@ typedef struct {
     bool is_locked;     // True if currently held
 } Mutex;
 
-// NEW: Message Queue structure
+// Message Queue structure
 typedef struct {
     int buffer[QUEUE_MAX_SIZE];
     int head;                   // Where to read from
@@ -42,6 +42,13 @@ typedef struct {
     int count;                  // How many items are currently in the queue
     Mutex lock;                 // Protects the queue from Race Conditions!
 } MessageQueue;
+
+// NEW: Counting Semaphore API
+typedef struct {
+    int count;          // How many resources are currently available
+    int max_count;      // The total capacity of the pool
+    Mutex lock;         // A Mutex to protect the counter from race conditions!
+} Semaphore;
 
 // Kernel API
 void os_init(void);
@@ -55,10 +62,15 @@ void mutex_init(Mutex* m);
 void mutex_acquire(Mutex* m);
 void mutex_release(Mutex* m);
 
-// NEW: Message Queue API
+// Message Queue API
 void mq_init(MessageQueue* q);
 void mq_send(MessageQueue* q, int data);
 int mq_receive(MessageQueue* q);
+
+// NEW: Semaphore API
+void sem_init(Semaphore* s, int max);
+void sem_wait(Semaphore* s);
+void sem_post(Semaphore* s);
 
 extern PCB process_table[MAX_PROCESSES];
 extern int current_process;
