@@ -1,6 +1,5 @@
 #include <stdio.h>
-#include <windows.h>
-#include "rtos.h"
+#include "rtos_threaded.h"
 
 Mutex shared_resource;
 
@@ -54,6 +53,7 @@ void task_high(void) {
     printf("[HIGH] =====> Task complete.\n");
 }
 
+#ifndef CLI_BUILD
 int main() {
     os_init();
     mutex_init(&shared_resource);
@@ -65,4 +65,5 @@ int main() {
     printf("Booting OS with Priority Inheritance...\n");
     os_start();
     return 0;
-}
+}}
+#endif /* CLI_BUILD */
